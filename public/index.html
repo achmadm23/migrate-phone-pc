@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phone ⇄ PC</title>
+  <style>
+    :root { --bg: #f5f5f7; --card: #fff; --text: #1d1d1f; --muted: #6e6e73; --accent: #0071e3; --bad: #d70015; --ok: #248a3d; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #000; --card: #1c1c1e; --text: #f5f5f7; --muted: #98989d; --accent: #0a84ff; --bad: #ff453a; --ok: #30d158; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; font: 16px/1.4 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { max-width: 560px; margin: 0 auto; display: grid; gap: 12px; }
+    h1 { font-size: 24px; margin: 4px 0; }
+    h2 { font-size: 17px; margin: 0 0 8px; }
+    .card { background: var(--card); border-radius: 14px; padding: 14px; }
+    .tip { color: var(--muted); font-size: 14px; margin: 0; }
+    .btn { display: block; width: 100%; padding: 14px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; text-align: center; cursor: pointer; }
+    .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); margin-top: 8px; }
+    progress { width: 100%; height: 8px; }
+    .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; color: var(--muted); margin-top: 6px; }
+    .stats b { color: var(--text); }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    li { font-size: 14px; overflow-wrap: anywhere; }
+    li .row { display: flex; justify-content: space-between; gap: 8px; }
+    li .state { color: var(--muted); white-space: nowrap; }
+    .bad { color: var(--bad); }
+    .ok { color: var(--ok); font-weight: 600; }
+    .panel { display: grid; gap: 12px; }
+    .panel[hidden] { display: none; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border-radius: 10px; background: var(--card); }
+    .tabs button { padding: 9px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+    .row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .link { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+    .dl { flex: none; padding: 6px 14px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; }
+    #sharedList li { display: flex; align-items: center; gap: 12px; }
+    #sharedList .info { flex: 1; min-width: 0; }
+    li.media { display: flex; gap: 12px; align-items: center; }
+    li.media .body { flex: 1; min-width: 0; }
+    .thumb { flex: none; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; background: var(--bg); display: grid; place-items: center; position: relative; color: var(--muted); font-size: 11px; font-weight: 700; text-decoration: none; text-transform: uppercase; }
+    .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .thumb .badge { position: absolute; right: 3px; bottom: 3px; padding: 0 4px; border-radius: 4px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 10px; line-height: 15px; }
+    #sharedList .size { color: var(--muted); font-size: 13px; }
+    #sharedList li.sel { cursor: pointer; }
+    .pick { flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+    .selbar { position: sticky; bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 16px; border-radius: 14px; background: var(--text); color: var(--bg); box-shadow: 0 6px 20px rgba(0, 0, 0, .25); font-weight: 600; }
+    .selbar[hidden] { display: none; }
+    .selbar { flex-wrap: wrap; }
+    .selbtns { display: flex; gap: 8px; margin-left: auto; }
+    .banner { display: block; padding: 12px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--accent); color: var(--text); text-decoration: none; font-size: 15px; }
+    .banner[hidden] { display: none; }
+    button.dl { border: 0; font: inherit; font-size: 14px; cursor: pointer; }
+    button.dl:disabled { opacity: .6; }
+    #dlMsg:empty { display: none; }
+    .empty { color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Phone ⇄ PC</h1>
+  <a class="banner" id="secureBanner" href="/setup" hidden>Want a <b>Save to Photos</b> button? One-time setup →</a>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabSend" aria-selected="true">Send to PC</button>
+    <button role="tab" id="tabGet" aria-selected="false">Get from PC <span id="getCount"></span></button>
+  </div>
+
+  <section id="getPanel" class="panel" hidden>
+    <div class="card">
+      <div class="row-head">
+        <h2>Files from the PC</h2>
+        <button class="link" id="selectAll" hidden>Select all</button>
+      </div>
+      <ul id="sharedList"></ul>
+    </div>
+    <div class="selbar" id="selBar" hidden>
+      <span id="selInfo"></span>
+      <div class="selbtns">
+        <button class="dl" id="photosBtn" hidden>Prepare for Photos</button>
+        <button class="dl" id="dlSelected">Download</button>
+      </div>
+    </div>
+    <p class="tip" id="dlMsg" role="status"></p>
+    <p class="tip" id="getTip"></p>
+  </section>
+
+  <section id="sendPanel" class="panel">
+  <p class="tip"><span id="awakeTip"></span> Pick in batches of a few hundred items.</p>
+
+  <div class="card">
+    <label class="btn">Choose photos, videos or files
+      <input id="pick" type="file" multiple hidden>
+    </label>
+    <div class="stats" id="stats"></div>
+    <progress id="total" max="1" value="0"></progress>
+    <p class="tip" id="message"></p>
+  </div>
+
+  <div class="card" id="activeBox" hidden>
+    <h2>Sending</h2>
+    <ul id="active"></ul>
+  </div>
+
+  <div class="card" id="failedBox" hidden>
+    <h2 class="bad">Failed</h2>
+    <ul id="failed"></ul>
+    <button class="btn secondary" id="retry">Retry failed</button>
+  </div>
+  </section>
+</main>
+
+<script>
+  const TOKEN = new URLSearchParams(location.search).get('t') || '';
+  const CHUNK = 8 * 1024 * 1024;
+  const PARALLEL = 3;
+  const MAX_ATTEMPTS = 8;
+
+  const $ = (id) => document.getElementById(id);
+  const queue = [];
+  const inFlight = new Set();
+  const failed = [];
+  const stats = { done: 0, skipped: 0, bytesTotal: 0, bytesDone: 0 };
+  let running = 0;
+
+  const keyOf = (f) => `${f.name}|${f.size}|${f.lastModified}`;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function formatBytes(n) {
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return `${n.toFixed(i ? 1 : 0)} ${u[i]}`;
+  }
+
+  function render() {
+    const left = queue.length + running;
+    $('stats').innerHTML =
+      `<span><b>${stats.done}</b> sent</span>` +
+      `<span><b>${stats.skipped}</b> already on PC</span>` +
+      `<span><b>${failed.length}</b> failed</span>` +
+      `<span><b>${left}</b> left</span>` +
+      `<span>${formatBytes(stats.bytesDone)} / ${formatBytes(stats.bytesTotal)}</span>`;
+    $('total').max = stats.bytesTotal || 1;
+    $('total').value = stats.bytesDone;
+    $('activeBox').hidden = running === 0;
+    $('failedBox').hidden = failed.length === 0;
+    $('message').innerHTML = left === 0 && stats.bytesTotal > 0 && failed.length === 0
+      ? '<span class="ok">All selected items are on the PC. Pick the next batch.</span>'
+      : '';
+  }
+
+  function enqueue(file) {
+    const key = keyOf(file);
+    if (inFlight.has(key)) return;
+    inFlight.add(key);
+    queue.push(file);
+    stats.bytesTotal += file.size;
+  }
+
+  function pump() {
+    while (running < PARALLEL && queue.length) {
+      const file = queue.shift();
+      running++;
+      upload(file)
+        .then((result) => { result === 'skipped' ? stats.skipped++ : stats.done++; })
+        .catch((err) => {
+          failed.push({ file, error: err.message || String(err) });
+          renderFailed();
+        })
+        .finally(() => {
+          inFlight.delete(keyOf(file));
+          running--;
+          render();
+          pump();
+        });
+    }
+    render();
+  }
+
+  function renderFailed() {
+    const list = $('failed');
+    list.replaceChildren(...failed.map(({ file, error }) => {
+      const li = document.createElement('li');
+      li.textContent = `${file.name} — ${error}`;
+      return li;
+    }));
+  }
+
+  const IMAGE_EXT = /\.(jpe?g|heic|heif|png|gif|webp|avif|bmp|tiff?|dng)$/i;
+  const VIDEO_EXT = /\.(mov|mp4|m4v|3gp|webm|mkv|avi)$/i;
+  const kindOf = (name, type = '') =>
+    type.startsWith('image/') || IMAGE_EXT.test(name) ? 'image'
+    : type.startsWith('video/') || VIDEO_EXT.test(name) ? 'video' : null;
+  const extOf = (name) => (/\.([^.]+)$/.exec(name)?.[1] ?? 'file').slice(0, 4);
+
+  /** Photo/video preview; falls back to the file type when it can't be shown. */
+  function thumb(name, kind, src, href) {
+    const box = document.createElement(href ? 'a' : 'div');
+    box.className = 'thumb';
+    if (href) Object.assign(box, { href, target: '_blank', rel: 'noopener' });
+    const fallback = () => box.replaceChildren(extOf(name));
+    if (kind === 'image') {
+      const img = Object.assign(document.createElement('img'), { src, alt: '', loading: 'lazy', decoding: 'async' });
+      img.onerror = fallback;
+      box.append(img);
+    } else if (kind === 'video') {
+      const video = Object.assign(document.createElement('video'), { src: `${src}#t=0.1`, muted: true, preload: 'metadata', playsInline: true });
+      video.onerror = fallback;
+      box.append(video, Object.assign(document.createElement('span'), { className: 'badge', textContent: '▶' }));
+    } else {
+      fallback();
+    }
+    return box;
+  }
+
+  function addRow(file) {
+    const name = file.name;
+    const kind = kindOf(name, file.type);
+    // Preview straight from the local file; nothing extra goes over Wi-Fi.
+    const objectUrl = kind ? URL.createObjectURL(file) : null;
+    const li = document.createElement('li');
+    li.className = 'media';
+    const body = document.createElement('div');
+    body.className = 'body';
+    const row = document.createElement('div');
+    row.className = 'row';
+    const label = document.createElement('span');
+    label.textContent = name;
+    const state = document.createElement('span');
+    state.className = 'state';
+    const bar = document.createElement('progress');
+    bar.max = 1;
+    bar.value = 0;
+    row.append(label, state);
+    body.append(row, bar);
+    li.append(thumb(name, kind, objectUrl), body);
+    $('active').append(li);
+    return {
+      progress(sent, size) { bar.max = size || 1; bar.value = sent; state.textContent = `${Math.floor((sent / (size || 1)) * 100)}%`; },
+      status(text) { state.textContent = text; },
+      remove() {
+        li.remove();
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      },
+    };
+  }
+
+  function httpError(status, message) {
+    const err = new Error(message || `HTTP ${status}`);
+    // These won't be fixed by retrying; everything else (network, 404, 409, 5xx) will.
+    err.fatal = status === 400 || status === 403 || status === 413;
+    return err;
+  }
+
+  async function api(path, body) {
+    let res;
+    try {
+      res = await fetch(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-token': TOKEN },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      throw new Error('network error');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw httpError(res.status, data.error);
+    return data;
+  }
+
+  // XHR instead of fetch: Safari doesn't report upload progress for fetch.
+  function putChunk(id, file, offset, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', `/api/chunk?id=${id}&offset=${offset}`);
+      xhr.setRequestHeader('x-token', TOKEN);
+      xhr.setRequestHeader('content-type', 'application/octet-stream');
+      xhr.timeout = 120000;
+      xhr.upload.onprogress = (e) => onProgress(offset + e.loaded);
+      xhr.onload = () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch {}
+        // 409 = server has a different offset; just continue from where it is.
+        if ((xhr.status === 200 || xhr.status === 409) && Number.isFinite(data.offset)) resolve(data.offset);
+        else reject(httpError(xhr.status, data.error));
+      };
+      xhr.onerror = () => reject(new Error('network error'));
+      xhr.ontimeout = () => reject(new Error('timed out'));
+      xhr.send(file.slice(offset, Math.min(offset + CHUNK, file.size)));
+    });
+  }
+
+  async function upload(file) {
+    const row = addRow(file);
+    let credited = 0;
+    const credit = (bytes) => { stats.bytesDone += bytes - credited; credited = bytes; render(); };
+    try {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const init = await api('/api/init', { name: file.name, size: file.size, lastModified: file.lastModified });
+          if (init.status === 'done') { credit(file.size); return 'skipped'; }
+
+          let offset = init.offset;
+          credit(offset);
+          while (offset < file.size) {
+            offset = await putChunk(init.id, file, offset, (sent) => { row.progress(sent, file.size); credit(sent); });
+            credit(offset);
+            attempt = 1;
+          }
+          row.status('saving…');
+          await api('/api/complete', { id: init.id });
+          return 'sent';
+        } catch (err) {
+          if (err.fatal || attempt >= MAX_ATTEMPTS) throw err;
+          const wait = Math.min(30000, 1000 * 2 ** attempt);
+          row.status(`retrying in ${Math.round(wait / 1000)}s`);
+          await sleep(wait);
+        }
+      }
+    } catch (err) {
+      // Failed files leave the totals; they come back in when retried.
+      stats.bytesDone -= credited;
+      stats.bytesTotal -= file.size;
+      throw err;
+    } finally {
+      row.remove();
+    }
+  }
+
+  $('pick').addEventListener('change', (e) => {
+    for (const file of e.target.files) enqueue(file);
+    e.target.value = '';
+    pump();
+  });
+
+  $('retry').addEventListener('click', () => {
+    const again = failed.splice(0);
+    renderFailed();
+    for (const { file } of again) enqueue(file);
+    pump();
+  });
+
+  window.addEventListener('beforeunload', (e) => {
+    if (running || queue.length) e.preventDefault();
+  });
+
+  // ---- Get from PC ----
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('awakeTip').textContent = isIOS
+    ? 'Keep this page open and the screen on (Settings → Display & Brightness → Auto-Lock → Never) until everything is sent.'
+    : 'Keep this page open and the screen on (Settings → Display → Screen timeout → longest) until everything is sent.';
+  // ---- HTTPS: Save to Photos via the Share sheet (needs a secure page) ----
+  const HTTPS_PORT = Number('{{HTTPS_PORT}}');
+  const canSaveToPhotos = window.isSecureContext && typeof navigator.canShare === 'function'
+    && navigator.canShare({ files: [new File([''], 'x.jpg', { type: 'image/jpeg' })] });
+
+  if (location.protocol === 'http:') {
+    $('secureBanner').href = `/setup${location.search}`;
+    // If this phone already trusts the PC, switch to the secure page (not in the middle of an upload).
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 3000);
+    fetch(`https://${location.hostname}:${HTTPS_PORT}/api/ping`, { cache: 'no-store', signal: ctrl.signal })
+      .then((res) => {
+        if (res.ok && !running && !queue.length) location.replace(`https://${location.hostname}:${HTTPS_PORT}/${location.search}`);
+        else $('secureBanner').hidden = false;
+      })
+      .catch(() => { $('secureBanner').hidden = false; });
+  }
+
+  $('getTip').textContent = canSaveToPhotos
+    ? (isIOS
+      ? 'To put photos and videos in Photos: select them, tap Prepare for Photos, then Save to Photos and choose Save. Download saves to Files › Downloads instead.'
+      : 'To add photos and videos to your gallery: select them, tap Prepare for Photos, then Save to Photos. Download saves to the Downloads folder.')
+    : (isIOS
+      ? 'Downloads go to the Files app › Downloads. To save a photo straight to Photos, tap its preview, then press and hold the photo and choose Save to Photos.'
+      : 'Downloads go to the Downloads folder. Photos and videos also show up in your gallery app.');
+
+  let sharedFiles = [];
+  let sharedKey = '';
+
+  function selectTab(get) {
+    $('tabSend').setAttribute('aria-selected', String(!get));
+    $('tabGet').setAttribute('aria-selected', String(get));
+    $('sendPanel').hidden = get;
+    $('getPanel').hidden = !get;
+    if (get) loadShared();
+  }
+  $('tabSend').addEventListener('click', () => selectTab(false));
+  $('tabGet').addEventListener('click', () => selectTab(true));
+
+  const downloadUrl = (f) => `/api/download/${f.id}?t=${encodeURIComponent(TOKEN)}`;
+
+  function renderShared() {
+    $('getCount').textContent = sharedFiles.length ? `(${sharedFiles.length})` : '';
+    $('selectAll').hidden = sharedFiles.length < 2;
+    // Forget selections for files the PC no longer offers.
+    const ids = new Set(sharedFiles.map((f) => f.id));
+    for (const id of selected) if (!ids.has(id)) selected.delete(id);
+    updateSelection();
+    const key = JSON.stringify(sharedFiles);
+    if (key === sharedKey) return;
+    sharedKey = key;
+    if (!sharedFiles.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = 'Nothing yet. On the PC dashboard, click "Add files…".';
+      $('sharedList').replaceChildren(li);
+      return;
+    }
+    $('sharedList').replaceChildren(...sharedFiles.map((f) => {
+      const li = document.createElement('li');
+      li.className = 'sel';
+      const pick = Object.assign(document.createElement('input'), {
+        type: 'checkbox', className: 'pick', checked: selected.has(f.id),
+      });
+      pick.setAttribute('aria-label', `Select ${f.name}`);
+      pick.addEventListener('change', () => {
+        pick.checked ? selected.add(f.id) : selected.delete(f.id);
+        updateSelection();
+      });
+      // Tapping the row (not the preview or Download button) toggles the checkbox.
+      li.addEventListener('click', (e) => {
+        if (e.target.closest('a, input')) return;
+        pick.click();
+      });
+      const info = document.createElement('div');
+      info.className = 'info';
+      const name = document.createElement('div');
+      name.textContent = f.name;
+      const size = document.createElement('div');
+      size.className = 'size';
+      size.textContent = formatBytes(f.size);
+      info.append(name, size);
+      const a = document.createElement('a');
+      a.className = 'dl';
+      a.href = downloadUrl(f);
+      a.download = f.name;
+      a.textContent = 'Download';
+      const t = encodeURIComponent(TOKEN);
+      li.append(pick, thumb(f.name, f.kind, `/api/preview/${f.id}?t=${t}`, `/api/view/${f.id}?t=${t}`), info, a);
+      return li;
+    }));
+  }
+
+  async function loadShared() {
+    try {
+      const res = await fetch('/api/shared', { headers: { 'x-token': TOKEN }, cache: 'no-store' });
+      if (res.ok) {
+        sharedFiles = await res.json();
+        renderShared();
+      }
+    } catch {
+      // PC unreachable; try again on the next tick
+    }
+  }
+
+  const selected = new Set();
+  // Files loaded for the Share sheet: { key, files }. Reset when the selection changes.
+  let prepared = null;
+  const selectionKey = () => [...selected].sort().join();
+
+  function updateSelection() {
+    const chosen = sharedFiles.filter((f) => selected.has(f.id));
+    $('selBar').hidden = chosen.length === 0;
+    if (prepared && prepared.key !== selectionKey()) prepared = null;
+    $('photosBtn').hidden = !canSaveToPhotos || !chosen.some((f) => f.kind);
+    $('photosBtn').textContent = prepared ? 'Save to Photos' : 'Prepare for Photos';
+    const total = chosen.reduce((sum, f) => sum + f.size, 0);
+    $('selInfo').textContent = `${chosen.length} selected · ${formatBytes(total)}`;
+    $('dlSelected').textContent = chosen.length > 1 ? `Download ${chosen.length} files` : 'Download';
+    const all = sharedFiles.length > 0 && chosen.length === sharedFiles.length;
+    $('selectAll').textContent = all ? 'Clear' : 'Select all';
+  }
+
+  function startDownload(href, name) {
+    const a = Object.assign(document.createElement('a'), { href, download: name || '' });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  }
+
+  $('selectAll').addEventListener('click', () => {
+    const all = selected.size === sharedFiles.length;
+    selected.clear();
+    if (!all) sharedFiles.forEach((f) => selected.add(f.id));
+    for (const box of $('sharedList').querySelectorAll('.pick')) box.checked = !all;
+    updateSelection();
+  });
+
+  // Each file is saved separately. Spacing them out lets the browser handle one prompt
+  // at a time (Chrome asks once to allow multiple downloads; Safari may ask per file).
+  $('dlSelected').addEventListener('click', async () => {
+    const chosen = sharedFiles.filter((f) => selected.has(f.id));
+    if (chosen.length === 1) {
+      startDownload(downloadUrl(chosen[0]), chosen[0].name);
+      return;
+    }
+    $('dlSelected').disabled = true;
+    for (let i = 0; i < chosen.length; i++) {
+      $('dlMsg').textContent = `Starting download ${i + 1} of ${chosen.length}: ${chosen[i].name}`;
+      startDownload(downloadUrl(chosen[i]), chosen[i].name);
+      if (i < chosen.length - 1) await sleep(1500);
+    }
+    $('dlMsg').textContent = isIOS
+      ? `Started ${chosen.length} downloads. If Safari asked about each file, tap Download. They are in Files › Downloads.`
+      : `Started ${chosen.length} downloads. If the browser asked to allow multiple downloads, tap Allow; any that were blocked can be downloaded one by one above.`;
+    $('dlSelected').disabled = false;
+  });
+
+  // Two taps: the phone only opens the Share sheet right after a tap, and loading the
+  // files takes longer than that. So the first tap loads them, the second shares them.
+  const PHOTOS_LIMIT = 1.5 * 1024 ** 3; // the files stay in the phone's memory until shared
+  $('photosBtn').addEventListener('click', async () => {
+    if (prepared && prepared.key === selectionKey()) {
+      try {
+        await navigator.share({ files: prepared.files });
+        $('dlMsg').textContent = 'Done. If you chose Save, they are in Photos now.';
+        prepared = null;
+        updateSelection();
+      } catch (err) {
+        if (err.name !== 'AbortError') $('dlMsg').textContent = `Couldn't open the share sheet: ${err.message}`;
+      }
+      return;
+    }
+
+    const media = sharedFiles.filter((f) => selected.has(f.id) && f.kind);
+    const total = media.reduce((sum, f) => sum + f.size, 0);
+    if (total > PHOTOS_LIMIT) {
+      $('dlMsg').textContent = `That's ${formatBytes(total)}, too much to hand over at once. Select under ${formatBytes(PHOTOS_LIMIT)}, or use Download for big videos.`;
+      return;
+    }
+    $('photosBtn').disabled = true;
+    try {
+      const files = [];
+      for (let i = 0; i < media.length; i++) {
+        const f = media[i];
+        $('dlMsg').textContent = `Loading ${i + 1} of ${media.length}: ${f.name}`;
+        const res = await fetch(downloadUrl(f), { cache: 'no-store' });
+        if (!res.ok) throw new Error(`${f.name} (error ${res.status})`);
+        const blob = await res.blob();
+        files.push(new File([blob], f.name, { type: blob.type || 'application/octet-stream' }));
+      }
+      if (!navigator.canShare({ files })) throw new Error("this phone can't share these file types");
+      prepared = { key: selectionKey(), files };
+      const skipped = selected.size - media.length;
+      $('dlMsg').textContent = `Ready. Tap Save to Photos, then choose Save.`
+        + (skipped ? ` ${skipped} non-photo file${skipped > 1 ? 's were' : ' was'} left out; use Download for ${skipped > 1 ? 'those' : 'it'}.` : '');
+    } catch (err) {
+      $('dlMsg').textContent = `Couldn't prepare: ${err.message}`;
+    } finally {
+      $('photosBtn').disabled = false;
+      updateSelection();
+    }
+  });
+
+  loadShared();
+  setInterval(loadShared, 4000);
+
+  if (!TOKEN) $('message').textContent = 'Missing access token. Scan the QR code on the PC again.';
+  render();
+</script>
+</body>
+</html>

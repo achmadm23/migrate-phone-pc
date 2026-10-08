@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phone Transfer</title>
+  <style>
+    :root { --bg: #f5f5f7; --card: #fff; --text: #1d1d1f; --muted: #6e6e73; --line: #e5e5ea; --accent: #0071e3; --bad: #d70015; --ok: #248a3d; --warn: #b25000; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #000; --card: #1c1c1e; --text: #f5f5f7; --muted: #98989d; --line: #38383a; --accent: #0a84ff; --bad: #ff453a; --ok: #30d158; --warn: #ff9f0a; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px; font: 15px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { max-width: 1040px; margin: 0 auto; display: grid; gap: 16px; grid-template-columns: 320px 1fr; align-items: start; }
+    @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+    header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+    h1 { font-size: 24px; margin: 0; }
+    h2 { font-size: 15px; margin: 0 0 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .card { background: var(--card); border-radius: 14px; padding: 16px; min-width: 0; }
+    .col { display: grid; gap: 16px; min-width: 0; }
+    .qr { background: #fff; border-radius: 10px; padding: 8px; }
+    .qr img { display: block; width: 100%; height: auto; }
+    .muted { color: var(--muted); font-size: 13px; }
+    code { font: 13px ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+    .urls { display: grid; gap: 4px; margin-top: 10px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+    .tile .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .tile .l { color: var(--muted); font-size: 13px; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+    li:first-child { border-top: 0; }
+    .row { display: flex; justify-content: space-between; gap: 12px; }
+    .row .name { overflow-wrap: anywhere; }
+    .row .meta { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    progress { width: 100%; height: 6px; margin-top: 4px; }
+    .empty { color: var(--muted); font-size: 14px; }
+    .status { font-size: 14px; }
+    .status.ok { color: var(--ok); }
+    .status.bad { color: var(--bad); }
+    .paused { color: var(--warn); }
+    #free { margin: 6px 0 0; }
+    #free.low { color: var(--bad); font-weight: 600; }
+    .folder { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .folder input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: 13px ui-monospace, Consolas, monospace; }
+    .folder input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    .buttons { display: flex; gap: 8px; }
+    .btn { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn.secondary { background: transparent; color: var(--accent); }
+    .btn:disabled { opacity: .5; cursor: default; }
+    #outMsg, #shareMsg { margin: 0; min-height: 1em; }
+    #shareMsg { margin: 8px 0; }
+    #shareMsg.bad { color: var(--bad); }
+    li.media { display: flex; gap: 12px; align-items: center; }
+    li.media .body { flex: 1; min-width: 0; }
+    .thumb { flex: none; width: 52px; height: 52px; border-radius: 8px; overflow: hidden; background: var(--line); display: grid; place-items: center; position: relative; color: var(--muted); font-size: 11px; font-weight: 700; text-decoration: none; text-transform: uppercase; }
+    .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    a.thumb:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .thumb .badge { position: absolute; right: 3px; bottom: 3px; padding: 0 4px; border-radius: 4px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 10px; line-height: 15px; }
+    .remove { border: 0; background: none; color: var(--muted); font: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }
+    .remove:hover { color: var(--bad); }
+    #outMsg.bad { color: var(--bad); }
+    #outMsg.ok { color: var(--ok); }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Phone ⇄ PC transfer</h1>
+    <span class="status" id="status">Connecting…</span>
+  </header>
+
+  <div class="col">
+    <div class="card">
+      <h2>Scan with your phone</h2>
+      <div class="qr"><img src="/dashboard/qr.svg" alt="QR code for the upload page"></div>
+      <div class="urls" id="urls"></div>
+      <p class="muted">Works with iPhone and Android. The phone must be on the same Wi-Fi. If it can't connect, allow Node.js through Windows Firewall on Private networks.</p>
+    </div>
+    <div class="card">
+      <h2>Saving to</h2>
+      <code id="outDir"></code>
+      <p class="muted" id="free"></p>
+      <form id="outForm" class="folder">
+        <input id="outInput" type="text" spellcheck="false" autocomplete="off" placeholder="D:\Phone-Backup" aria-label="Folder to save to">
+        <div class="buttons">
+          <button type="button" class="btn secondary" id="browse" hidden>Browse…</button>
+          <button type="submit" class="btn" id="saveOut">Use this folder</button>
+        </div>
+        <p class="muted" id="outMsg" role="status"></p>
+      </form>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card tiles">
+      <div class="tile"><div class="v" id="files">0</div><div class="l">files this session</div></div>
+      <div class="tile"><div class="v" id="bytes">0 B</div><div class="l">received this session</div></div>
+      <div class="tile"><div class="v" id="speed">–</div><div class="l">current speed</div></div>
+      <div class="tile"><div class="v" id="skipped">0</div><div class="l">skipped (already here)</div></div>
+      <div class="tile"><div class="v" id="total">0</div><div class="l">files on PC in total</div></div>
+    </div>
+    <div class="card">
+      <h2>Receiving now</h2>
+      <ul id="active"></ul>
+    </div>
+    <div class="card">
+      <h2>Send to phone</h2>
+      <p class="muted" style="margin-top:0">Files you add here appear on the phone page under <b>Get from PC</b>. They stay where they are on the PC; nothing is copied.</p>
+      <div class="buttons">
+        <button type="button" class="btn" id="share">Add files…</button>
+        <button type="button" class="btn secondary" id="unshareAll" hidden>Remove all</button>
+      </div>
+      <p class="muted" id="shareMsg" role="status"></p>
+      <ul id="shared"></ul>
+    </div>
+    <div class="card">
+      <h2>Received from phone</h2>
+      <ul id="recent"></ul>
+    </div>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const samples = [];
+
+  function formatBytes(n) {
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return `${n.toFixed(i ? 1 : 0)} ${u[i]}`;
+  }
+
+  const extOf = (name) => (/\.([^.]+)$/.exec(name)?.[1] ?? 'file').slice(0, 4);
+
+  /** Photo/video preview; falls back to the file type when the browser can't show it (e.g. HEIC). */
+  function thumb(name, kind, src, href) {
+    const box = document.createElement(href ? 'a' : 'div');
+    box.className = 'thumb';
+    if (href) Object.assign(box, { href, target: '_blank', rel: 'noopener', title: `Open ${name}` });
+    const fallback = () => box.replaceChildren(extOf(name));
+    if (kind === 'image') {
+      const img = Object.assign(document.createElement('img'), { src, alt: '', loading: 'lazy', decoding: 'async' });
+      img.onerror = fallback;
+      box.append(img);
+    } else if (kind === 'video') {
+      const video = Object.assign(document.createElement('video'), { src: `${src}#t=0.1`, muted: true, preload: 'metadata', playsInline: true });
+      video.onerror = fallback;
+      const badge = Object.assign(document.createElement('span'), { className: 'badge', textContent: '▶' });
+      box.append(video, badge);
+    } else {
+      fallback();
+    }
+    return box;
+  }
+
+  function item(name, meta, progress, preview) {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'row';
+    const a = document.createElement('span');
+    a.className = 'name';
+    a.textContent = name;
+    const b = document.createElement('span');
+    b.className = 'meta';
+    b.textContent = meta;
+    row.append(a, b);
+    li.append(row);
+    if (progress) {
+      const bar = document.createElement('progress');
+      bar.max = progress.max || 1;
+      bar.value = progress.value;
+      li.append(bar);
+    }
+    if (preview) {
+      const body = document.createElement('div');
+      body.className = 'body';
+      body.append(...li.childNodes);
+      li.className = 'media';
+      li.append(preview, body);
+    }
+    return li;
+  }
+
+  function fill(list, items, emptyText) {
+    if (items.length) list.replaceChildren(...items);
+    else {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = emptyText;
+      list.replaceChildren(li);
+    }
+  }
+
+  function render(s) {
+    const now = Date.now();
+    samples.push({ t: now, b: s.session.bytesReceived });
+    while (samples.length > 1 && now - samples[0].t > 5000) samples.shift();
+    const first = samples[0];
+    const speed = now > first.t ? (s.session.bytesReceived - first.b) / ((now - first.t) / 1000) : 0;
+
+    $('files').textContent = s.session.files;
+    $('bytes').textContent = formatBytes(s.session.bytes);
+    $('speed').textContent = speed > 0 ? `${formatBytes(speed)}/s` : '–';
+    $('skipped').textContent = s.session.skipped;
+    $('total').textContent = s.totalFiles;
+    $('outDir').textContent = s.outDir;
+    if (s.freeBytes != null) {
+      $('free').textContent = `${formatBytes(s.freeBytes)} free on this drive`;
+      $('free').classList.toggle('low', s.freeBytes < 5 * 1024 ** 3);
+    }
+    // Don't overwrite what the user is typing.
+    if (document.activeElement !== $('outInput') && !outDirty) $('outInput').value = s.outDir;
+    $('browse').hidden = !s.canBrowse;
+    const lock = s.receiving || folderBusy;
+    $('browse').disabled = lock;
+    $('saveOut').disabled = lock;
+    if (s.receiving && !folderBusy) $('outMsg').className = 'muted', $('outMsg').textContent = 'Folder can be changed when the transfer finishes.';
+    else if (!s.receiving && $('outMsg').textContent.startsWith('Folder can be changed')) $('outMsg').textContent = '';
+
+    if (!$('urls').childElementCount) {
+      $('urls').replaceChildren(...s.phoneUrls.map((u) => {
+        const c = document.createElement('code');
+        c.textContent = u;
+        return c;
+      }));
+    }
+
+    fill($('active'), s.active.map((u) => {
+      const pct = Math.floor((u.received / (u.size || 1)) * 100);
+      const stale = now - u.updatedAt > 30000;
+      const li = item(u.name, `${pct}% · ${formatBytes(u.received)} / ${formatBytes(u.size)}`, { max: u.size, value: u.received });
+      if (stale) li.querySelector('.meta').classList.add('paused'), li.querySelector('.meta').textContent += ' · paused';
+      return li;
+    }), 'Nothing right now. Pick photos on the phone.');
+
+    renderShared(s);
+
+    // Only rebuild when the list changes, so previews don't reload every second.
+    const recentKey = s.recent.map((r) => r.id).join();
+    if (recentKey !== lastRecent) {
+      lastRecent = recentKey;
+      fill($('recent'), s.recent.map((r) => item(
+        r.path,
+        `${formatBytes(r.size)} · ${new Date(r.at).toLocaleTimeString()}`,
+        null,
+        thumb(r.path, r.kind, `/dashboard/preview/received/${r.id}`, `/dashboard/view/received/${r.id}`),
+      )), 'No files yet.');
+    }
+
+    const busy = s.active.some((u) => now - u.updatedAt <= 30000);
+    $('status').className = 'status ok';
+    $('status').textContent = busy ? 'Receiving…' : 'Waiting for phone';
+  }
+
+  let outDirty = false;
+  let folderBusy = false;
+  $('outInput').addEventListener('input', () => { outDirty = true; });
+
+  function folderMessage(text, kind) {
+    $('outMsg').className = kind || 'muted';
+    $('outMsg').textContent = text;
+  }
+
+  async function dashboardPost(path, body) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-dashboard': '1' },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    return data;
+  }
+
+  async function useFolder(path) {
+    folderBusy = true;
+    $('saveOut').disabled = $('browse').disabled = true;
+    folderMessage('Checking folder…');
+    try {
+      const s = await dashboardPost('/dashboard/output', { path });
+      outDirty = false;
+      $('outInput').value = s.outDir;
+      render(s);
+      folderMessage(`Saving to ${s.outDir}`, 'ok');
+    } catch (err) {
+      folderMessage(err.message, 'bad');
+    } finally {
+      folderBusy = false;
+    }
+  }
+
+  $('outForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    useFolder($('outInput').value);
+  });
+
+  $('browse').addEventListener('click', async () => {
+    folderBusy = true;
+    $('saveOut').disabled = $('browse').disabled = true;
+    folderMessage('Choose a folder in the window that just opened.');
+    try {
+      const { path } = await dashboardPost('/dashboard/browse');
+      folderBusy = false;
+      if (path) {
+        $('outInput').value = path;
+        await useFolder(path);
+      } else {
+        folderMessage('');
+      }
+    } catch (err) {
+      folderMessage(err.message, 'bad');
+    } finally {
+      folderBusy = false;
+    }
+  });
+
+  function renderShared(s) {
+    $('share').hidden = !s.canBrowse;
+    $('share').disabled = shareBusy;
+    $('unshareAll').hidden = s.shared.length < 2;
+    const key = JSON.stringify(s.shared);
+    if (key === lastShared) return; // avoid re-rendering buttons every second
+    lastShared = key;
+    fill($('shared'), s.shared.map((f) => {
+      const li = item(
+        f.name,
+        `${formatBytes(f.size)}${f.downloads ? ` · downloaded ${f.downloads}×` : ''}`,
+        null,
+        thumb(f.name, f.kind, `/dashboard/preview/shared/${f.id}`, `/dashboard/view/shared/${f.id}`),
+      );
+      const remove = document.createElement('button');
+      remove.className = 'remove';
+      remove.title = 'Stop offering this file';
+      remove.setAttribute('aria-label', `Remove ${f.name}`);
+      remove.textContent = '×';
+      remove.addEventListener('click', () => unshare(f.id));
+      li.querySelector('.row').append(remove);
+      return li;
+    }), 'No files offered yet.');
+  }
+
+  let shareBusy = false;
+  let lastRecent = null;
+  let lastShared = '';
+
+  async function unshare(id) {
+    try {
+      render(await dashboardPost('/dashboard/unshare', { id }));
+    } catch (err) {
+      $('shareMsg').className = 'muted bad';
+      $('shareMsg').textContent = err.message;
+    }
+  }
+
+  $('unshareAll').addEventListener('click', () => unshare('all'));
+
+  $('share').addEventListener('click', async () => {
+    shareBusy = true;
+    $('share').disabled = true;
+    $('shareMsg').className = 'muted';
+    $('shareMsg').textContent = 'Choose files in the window that just opened.';
+    try {
+      const before = lastShared ? JSON.parse(lastShared).length : 0;
+      const s = await dashboardPost('/dashboard/share');
+      const added = s.shared.length - before;
+      $('shareMsg').textContent = added > 0 ? `Added ${added} file${added > 1 ? 's' : ''}. Open "Get from PC" on the phone.` : '';
+      render(s);
+    } catch (err) {
+      $('shareMsg').className = 'muted bad';
+      $('shareMsg').textContent = err.message;
+    } finally {
+      shareBusy = false;
+      $('share').disabled = false;
+    }
+  });
+
+  async function poll() {
+    try {
+      const res = await fetch('/dashboard/status', { cache: 'no-store' });
+      if (!res.ok) throw new Error();
+      render(await res.json());
+    } catch {
+      $('status').className = 'status bad';
+      $('status').textContent = 'Server stopped. Run npm start again.';
+    }
+    setTimeout(poll, 1000);
+  }
+  poll();
+</script>
+</body>
+</html>
